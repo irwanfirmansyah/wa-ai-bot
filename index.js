@@ -1,23 +1,33 @@
 /**
- * ===============================
- *  WA BOT - DARURRAHMAH
- *  CLEAN FINAL VERSION
- * ===============================
+ * ==========================================
+ *  WA BOT - DARURRAHMAH (FINAL PRODUCTION)
+ *  Baileys + Railway + QR via Web
+ * ==========================================
  */
 
 import 'dotenv/config'
 
+// ===== CORE =====
+import express from 'express'
 import makeWASocket, {
   useMultiFileAuthState,
   DisconnectReason
 } from '@whiskeysockets/baileys'
-
 import pino from 'pino'
+import QRCode from 'qrcode'
+import fetch from 'node-fetch'
 import fs from 'fs'
 import path from 'path'
-import fetch from 'node-fetch'
-import express from 'express'
-import QRCode from 'qrcode'
+
+// ==========================================
+// KONFIGURASI
+// ==========================================
+const ADMIN_NUMBER = '6289517897482@s.whatsapp.net'
+const delay = ms => new Promise(res => setTimeout(res, ms))
+
+// ==========================================
+// EXPRESS SERVER (UNTUK QR)
+// ==========================================
 const app = express()
 const PORT = process.env.PORT || 3000
 
@@ -29,12 +39,13 @@ app.get('/', (req, res) => {
 
 app.get('/qr', async (req, res) => {
   if (!latestQR) {
-    return res.send('❌ QR belum tersedia atau sudah login')
+    return res.send('✅ Sudah login atau QR belum tersedia')
   }
 
   const qrImage = await QRCode.toDataURL(latestQR)
   res.send(`
     <h2>Scan QR WhatsApp</h2>
+    <p>Buka WhatsApp → Perangkat tertaut</p>
     <img src="${qrImage}" />
   `)
 })
@@ -43,15 +54,9 @@ app.listen(PORT, '0.0.0.0', () => {
   console.log(`🌐 Web running on port ${PORT}`)
 })
 
-/* ===============================
-      KONFIGURASI
-================================ */
-const ADMIN_NUMBER = '6289517897482@s.whatsapp.net'
-const delay = ms => new Promise(res => setTimeout(res, ms))
-
-/* ===============================
-      GOOGLE SHEET LOG
-================================ */
+// ==========================================
+// GOOGLE SHEET LOG
+// ==========================================
 async function logToSheet(data) {
   if (!process.env.SHEET_URL) return
 
@@ -66,37 +71,38 @@ async function logToSheet(data) {
   }
 }
 
-/* ===============================
-      START BOT
-================================ */
+// ==========================================
+// START BOT
+// ==========================================
 async function startBot() {
   console.log('🤖 Bot starting...')
 
+  // ⚠️ REKOMENDASI RAILWAY:
+  // Gunakan "/data/auth" + Railway Volume
   const { state, saveCreds } =
-    await useMultiFileAuthState('./auth')
+    await useMultiFileAuthState('/data/auth')
 
   const sock = makeWASocket({
     auth: state,
-    logger: pino({ level: 'silent' }),
-    printQRInTerminal: false
-
+    logger: pino({ level: 'silent' })
   })
 
   sock.ev.on('creds.update', saveCreds)
 
-  /* ===============================
-        CONNECTION STATUS
-  ================================ */
+  // ==========================================
+  // CONNECTION STATUS + QR
+  // ==========================================
   sock.ev.on('connection.update', (update) => {
-  const { connection, lastDisconnect, qr } = update
+    const { connection, lastDisconnect, qr } = update
 
-  if (qr) {
-    latestQR = qr
-    console.log('📲 QR updated — buka /qr')
-  }
-
+    // ✅ QR HANDLER (INI YANG PENTING)
+    if (qr) {
+      latestQR = qr
+      console.log('📲 QR updated — buka /qr')
+    }
 
     if (connection === 'open') {
+      latestQR = null
       console.log('✅ WhatsApp Connected')
     }
 
@@ -114,9 +120,9 @@ async function startBot() {
     }
   })
 
-  /* ===============================
-        SEND MENU
-  ================================ */
+  // ==========================================
+  // SEND MENU
+  // ==========================================
   async function sendMenu(jid) {
     const menuText = `📚 *Pondok Pesantren Darurrahmah Bogor*
 
@@ -137,9 +143,9 @@ Silakan ketik angka atau kata berikut:
     await sock.sendMessage(jid, { text: menuText })
   }
 
-  /* ===============================
-        MESSAGE HANDLER
-  ================================ */
+  // ==========================================
+  // MESSAGE HANDLER
+  // ==========================================
   sock.ev.on('messages.upsert', async ({ messages, type }) => {
     if (type !== 'notify') return
 
@@ -160,28 +166,22 @@ Silakan ketik angka atau kata berikut:
 
     console.log('📩 TEXT:', text)
 
-    /* ===============================
-          SWITCH MENU
-    ================================ */
     switch (true) {
-      // MENU
       case ['menu', 'halo', 'hai', 'hi', 'assalamualaikum'].includes(text):
         await sendMenu(from)
         break
 
-      // PENDAFTARAN
       case text === '1' || text.includes('pendaftaran'):
         await sock.sendMessage(from, {
           text: `📝 *Pendaftaran Santri Baru*
 
-Silakan daftar melalui link berikut:
+Daftar online:
 👉 https://tally.so/r/wLRgaj
 
-Jika perlu bantuan, balas *admin*.`
+Balas *admin* jika perlu bantuan.`
         })
         break
 
-      // BIAYA + BROSUR
       case text === '2' || text.includes('biaya'): {
         const filePath = path.join(
           process.cwd(),
@@ -199,78 +199,52 @@ Jika perlu bantuan, balas *admin*.`
 
         await sock.sendMessage(from, {
           text: `💰 *Biaya Pendidikan*
-
-Detail lengkap:
-👉 https://daarurrahmah.com/info-biaya-pendaftaran-2026-pondok-pesantren-darurrahmah-bogor.html
-
-Balas *admin* untuk konsultasi.`
+👉 https://daarurrahmah.com/info-biaya-pendaftaran-2026-pondok-pesantren-darurrahmah-bogor.html`
         })
         break
       }
 
-      // KEGIATAN
       case text === '3' || text.includes('kegiatan'):
         await sock.sendMessage(from, {
           text: `📖 *Kegiatan Harian Santri*
-
-Lihat di:
 👉 https://daarrurrahmah.com/kegiatan-harian-santri-pondok-pesantren-darurrahmah-bogor.html`
         })
         break
 
-      // FASILITAS
       case text === '4' || text.includes('fasilitas'):
         await sock.sendMessage(from, {
           text: `🏫 *Fasilitas Pesantren*
-👉 https://daarurrahmah.com/pondok-pesantren-darurrahmah-gunungputri-bogor-fasilitas-ber-ac-terjangkau.html      
-✔ Asrama
-✔ Masjid
-✔ Ruang belajar
-✔ Lingkungan islami`
+👉 https://daarurrahmah.com/pondok-pesantren-darurrahmah-gunungputri-bogor-fasilitas-ber-ac-terjangkau.html`
         })
         break
 
-      // LOKASI
       case text === '5' || text.includes('alamat') || text.includes('lokasi'):
         await sock.sendMessage(from, {
           text: `📍 *Alamat Pesantren*
-
-Pondok Pesantren Darurrahmah  
-Jl.KH.Tb Asep Basri Kp. Sanding Ds. Bojongnangka Kec. Gunungputri Kab. Bogor, Jawa Barat
-
-📌 https://maps.app.goo.gl/jgCyKwnpkSBuRQGu7        `
+Jl. KH. Tb Asep Basri, Gunungputri, Bogor
+📌 https://maps.app.goo.gl/jgCyKwnpkSBuRQGu7`
         })
         break
 
-      // HANDOVER ADMIN
       case text === '6' || text.includes('admin'):
         await sock.sendMessage(from, {
-          text: `📞 *Admin Pesantren*
-
-Admin akan segera menghubungi Anda.`
+          text: `📞 Admin akan segera menghubungi Anda.`
         })
 
         await sock.sendMessage(ADMIN_NUMBER, {
           text: `🔔 *HANDOVER ADMIN*
-
 Nama: ${pushName}
-Nomor: ${from.replace('@s.whatsapp.net', '')}
-Pesan: ${text}`
+Nomor: ${from.replace('@s.whatsapp.net', '')}`
         })
         break
 
-      // DEFAULT
       default:
         await sock.sendMessage(from, {
           text: `❓ Pesan tidak dikenali.
-
 Ketik *menu* untuk melihat pilihan.`
         })
     }
 
-    /* ===============================
-          LOG KE SHEET
-    ================================ */
     await logToSheet({
       name: pushName,
       number: from.replace('@s.whatsapp.net', ''),
