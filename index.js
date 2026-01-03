@@ -16,6 +16,32 @@ import pino from 'pino'
 import fs from 'fs'
 import path from 'path'
 import fetch from 'node-fetch'
+import express from 'express'
+import QRCode from 'qrcode'
+const app = express()
+const PORT = process.env.PORT || 3000
+
+let latestQR = null
+
+app.get('/', (req, res) => {
+  res.send('🤖 WA Bot Darurrahmah is running')
+})
+
+app.get('/qr', async (req, res) => {
+  if (!latestQR) {
+    return res.send('❌ QR belum tersedia atau sudah login')
+  }
+
+  const qrImage = await QRCode.toDataURL(latestQR)
+  res.send(`
+    <h2>Scan QR WhatsApp</h2>
+    <img src="${qrImage}" />
+  `)
+})
+
+app.listen(PORT, '0.0.0.0', () => {
+  console.log(`🌐 Web running on port ${PORT}`)
+})
 
 /* ===============================
       KONFIGURASI
@@ -52,7 +78,8 @@ async function startBot() {
   const sock = makeWASocket({
     auth: state,
     logger: pino({ level: 'silent' }),
-    printQRInTerminal: true
+    printQRInTerminal: false
+
   })
 
   sock.ev.on('creds.update', saveCreds)
@@ -61,7 +88,13 @@ async function startBot() {
         CONNECTION STATUS
   ================================ */
   sock.ev.on('connection.update', (update) => {
-    const { connection, lastDisconnect } = update
+  const { connection, lastDisconnect, qr } = update
+
+  if (qr) {
+    latestQR = qr
+    console.log('📲 QR updated — buka /qr')
+  }
+
 
     if (connection === 'open') {
       console.log('✅ WhatsApp Connected')
