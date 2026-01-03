@@ -1,0 +1,20 @@
+{
+  "name": "wa-ai-bot",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "type": "module",
+  "scripts": {
+    "start": "node index.js"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "@whiskeysockets/baileys": "^7.0.0-rc.9",
+    "dotenv": "^17.2.3",
+    "node-fetch": "^3.3.2",
+    "openai": "^6.15.0",
+    "qrcode-terminal": "^0.12.0"
+  }
+}
